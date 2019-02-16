@@ -7,6 +7,11 @@ services:
       dockerfile: ./docker/Dockerfile
     environment:
       POLL_INTERVAL: 5000 # in ms
+      LIST_MANIFEST: "manifest" # manifest file name
+      LIST_PREFIX: "CAMERA_001"
+      LIST_DELIM: "/"
+      LIST_PARTITIONS: 5 # number of partitions
+      LIST_PARTITION_SIZE: 5 # size of each partition
       IP_CAMERA_URL: ""
       RABBITMQ_USER: ""
       RABBITMQ_PASS: ""
