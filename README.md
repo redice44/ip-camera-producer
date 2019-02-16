@@ -2,7 +2,7 @@
 
 Polls an IP camera's for an image, uploads the image to S3, and sends a message to the broker.
 
-Uses a rolling window to keep number of files restricted.
+Uses a rolling window to keep number of files restricted to paritions * parition size.
 
 ### ToDos
 

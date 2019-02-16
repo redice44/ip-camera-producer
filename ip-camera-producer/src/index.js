@@ -39,14 +39,14 @@ const partitionInfo = {
   head: 0,
   size: 0
 };
+const MANIFEST_KEY = `${LIST_PREFIX}${LIST_DELIM}${LIST_MANIFEST}`;
 
 const main = async () => {
-  const manifestKey = `${LIST_PREFIX}${LIST_DELIM}${LIST_MANIFEST}`;
-  const manifest = await ensureBucket(manifestKey);
+  const manifest = await ensureBucket();
   const brokerConnection = await setupConnection(rabbitMQConnectionString, topic);
-  partitionInfo.head = (manifest.tail - 1) % LIST_PARTITIONS;
+  partitionInfo.head = manifest.tail;
   await clearPartition(partitionInfo.head);
-  partitionInfo.tail = manifest.tail;
+  partitionInfo.tail = (manifest.tail + 1) % LIST_PARTITIONS;
 
   setInterval(imageProcedure, POLL_INTERVAL, brokerConnection);
 };
@@ -57,8 +57,8 @@ const imageProcedure = async (brokerConnection) => {
     partitionInfo.head = (partitionInfo.head + 1) % LIST_PARTITIONS;
     if (partitionInfo.head === partitionInfo.tail) {
       await clearPartition(partitionInfo.head);
-      // Update manifest
       partitionInfo.tail = (partitionInfo.tail + 1) % LIST_PARTITIONS;
+      await updateManifest(partitionInfo.tail);
     }
   }
   const key = `${LIST_PREFIX}${LIST_DELIM}${LIST_PARTITION_NAME}-${partitionInfo.head}${LIST_DELIM}${moment().format('x')}`;
@@ -74,6 +74,15 @@ const imageProcedure = async (brokerConnection) => {
   } catch (error) {
     console.log(error);
   }
+};
+
+const updateManifest = async (tail) => {
+  console.log('\n=== Updating Manifest ===');
+  await s3.putObject({
+    Bucket: S3_BUCKET,
+    Key: MANIFEST_KEY,
+    Body: JSON.stringify({ tail })
+  }).promise();
 };
 
 const clearPartition = async (partitionIndex) => {
@@ -115,12 +124,12 @@ const storeImage = (img, bucket, key) =>
 
 const retrieveImage = (url) => rp.get({ url, encoding: null });
 
-const ensureBucket = async (manifestKey) => {
+const ensureBucket = async () => {
   try {
     await s3.headBucket({ Bucket: S3_BUCKET }).promise();
     const manifest = await s3.getObject({
       Bucket: S3_BUCKET,
-      Key: manifestKey
+      Key: MANIFEST_KEY
     }).promise();
     return JSON.parse(manifest.Body);
   } catch (error) {
@@ -129,7 +138,7 @@ const ensureBucket = async (manifestKey) => {
       await s3.createBucket({ Bucket: S3_BUCKET }).promise();
       await s3.putObject({
         Bucket: S3_BUCKET,
-        Key: manifestKey,
+        Key: MANIFEST_KEY,
         Body: JSON.stringify(manifest)
       }).promise();
       return manifest;
