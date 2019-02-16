@@ -1,0 +1,20 @@
+{
+  "name": "@redice44/ip-camera-producer",
+  "version": "0.0.1",
+  "description": "",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node ./src/index.js"
+  },
+  "keywords": [],
+  "author": "Matt Thomson <mthomson.lee@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "@redice44/rabbitmq-topic-routing-schema": "https://github.com/redice44/rabbitmq-topic-routing-schema.git",
+    "@redice44/rabbitmq-topic-schemas": "https://github.com/redice44/rabbitmq-topic-schemas.git",
+    "aws-sdk": "^2.398.0",
+    "moment": "^2.24.0",
+    "request": "^2.88.0",
+    "request-promise": "^4.2.2"
+  }
+}

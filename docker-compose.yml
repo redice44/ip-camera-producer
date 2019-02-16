@@ -1,0 +1,23 @@
+version: "3.3"
+
+services:
+  camera-producer:
+    build:
+      context: ./ip-camera-producer
+      dockerfile: ./docker/Dockerfile
+    environment:
+      POLL_INTERVAL: 5000 # in ms
+      IP_CAMERA_URL: ""
+      RABBITMQ_USER: ""
+      RABBITMQ_PASS: ""
+      RABBITMQ_URL: ""
+      AWS_ACCESS_KEY_ID: ""
+      AWS_SECRET_ACCESS_KEY: ""
+      AWS_ENDPOINT: ""
+      S3_BUCKET: ""
+    volumes:
+      - ./ip-camera-producer:/usr/src/app
+      - camera-producer_node_modules:/usr/src/app/node_modules
+
+volumes:
+  camera-producer_node_modules:
