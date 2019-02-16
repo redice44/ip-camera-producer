@@ -14,6 +14,7 @@ const {
   LIST_DELIM,
   LIST_MANIFEST,
   LIST_PREFIX,
+  LIST_PARTITION_NAME,
   LIST_PARTITIONS,
   LIST_PARTITION_SIZE,
   RABBITMQ_USER,
@@ -41,11 +42,10 @@ const partitionInfo = {
 
 const main = async () => {
   const manifestKey = `${LIST_PREFIX}${LIST_DELIM}${LIST_MANIFEST}`;
-  const { Body } = await ensureBucket(S3_BUCKET, manifestKey);
-  const manifest = JSON.parse(Body);
+  const manifest = await ensureBucket(manifestKey);
   const brokerConnection = await setupConnection(rabbitMQConnectionString, topic);
   partitionInfo.head = (manifest.tail - 1) % LIST_PARTITIONS;
-  // Delete head partition
+  await clearPartition(partitionInfo.head);
   partitionInfo.tail = manifest.tail;
 
   setInterval(imageProcedure, POLL_INTERVAL, brokerConnection);
@@ -55,25 +55,41 @@ const imageProcedure = async (brokerConnection) => {
   if (partitionInfo.size + 1 > LIST_PARTITION_SIZE) {
     partitionInfo.size = 0;
     partitionInfo.head = (partitionInfo.head + 1) % LIST_PARTITIONS;
-    if (partitionInfo.head === partition.tail) {
-      // Delete tail partition
+    if (partitionInfo.head === partitionInfo.tail) {
+      await clearPartition(partitionInfo.head);
       // Update manifest
       partitionInfo.tail = (partitionInfo.tail + 1) % LIST_PARTITIONS;
     }
   }
-  const key = `${LIST_PREFIX}${LIST_DELIM}PARTITION-${partitionInfo.head}${LIST_DELIM}${moment().format('x')}`;
+  const key = `${LIST_PREFIX}${LIST_DELIM}${LIST_PARTITION_NAME}-${partitionInfo.head}${LIST_DELIM}${moment().format('x')}`;
   try {
     console.log(`\n=== ${key} ===`);
     console.log('Pulling Image');
+    partitionInfo.size++;
     const img = await retrieveImage(IP_CAMERA_URL);
     console.log('Saving Image');
     await storeImage(img, S3_BUCKET, `${key}.jpeg`);
     console.log('Sending Message');
     await sendMessage(brokerConnection, S3_BUCKET, `${key}.jpeg`);
-    partitionInfo.size++;
   } catch (error) {
     console.log(error);
   }
+};
+
+const clearPartition = async (partitionIndex) => {
+  const prefix = `${LIST_PREFIX}${LIST_DELIM}${LIST_PARTITION_NAME}-${partitionIndex}`;
+  console.log(`\n=== Clearing Partition: ${prefix} ===`);
+  const images = await s3.listObjectsV2({
+    Bucket: S3_BUCKET,
+    Prefix: prefix
+  }).promise();
+  const imagesToDelete = images.Contents.map(image => ({ Key: image.Key }));
+  console.log(`Deleting ${imagesToDelete.length} images`);
+  await s3.deleteObjects({
+    Bucket: S3_BUCKET,
+    Delete: { Objects: imagesToDelete }
+  }).promise();
+  console.log(`=== Done ===`);
 };
 
 const sendMessage = async (brokerConnection, bucket, key) => {
@@ -99,19 +115,20 @@ const storeImage = (img, bucket, key) =>
 
 const retrieveImage = (url) => rp.get({ url, encoding: null });
 
-const ensureBucket = async (bucket, manifestKey) => {
+const ensureBucket = async (manifestKey) => {
   try {
-    await s3.headBucket({ Bucket: bucket }).promise();
-    return await s3.getObject({
-      Bucket: bucket,
+    await s3.headBucket({ Bucket: S3_BUCKET }).promise();
+    const manifest = await s3.getObject({
+      Bucket: S3_BUCKET,
       Key: manifestKey
     }).promise();
+    return JSON.parse(manifest.Body);
   } catch (error) {
     if (error.code === 'NotFound') {
       const manifest = { tail: 1 };
-      await s3.createBucket({ Bucket: bucket }).promise();
+      await s3.createBucket({ Bucket: S3_BUCKET }).promise();
       await s3.putObject({
-        Bucket: bucket,
+        Bucket: S3_BUCKET,
         Key: manifestKey,
         Body: JSON.stringify(manifest)
       }).promise();

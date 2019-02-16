@@ -10,6 +10,7 @@ services:
       LIST_MANIFEST: "manifest" # manifest file name
       LIST_PREFIX: "CAMERA_001"
       LIST_DELIM: "/"
+      LIST_PARTITION_NAME: "PARTITION" # partition name prefix
       LIST_PARTITIONS: 5 # number of partitions
       LIST_PARTITION_SIZE: 5 # size of each partition
       IP_CAMERA_URL: ""
