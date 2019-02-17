@@ -40,6 +40,7 @@ const partitionInfo = {
   size: 0
 };
 const MANIFEST_KEY = `${LIST_PREFIX}${LIST_DELIM}${LIST_MANIFEST}`;
+const PARTITION_DIGITS = (''+LIST_PARTITIONS).length;
 
 const main = async () => {
   const manifest = await ensureBucket();
@@ -61,7 +62,7 @@ const imageProcedure = async (brokerConnection) => {
       await updateManifest(partitionInfo.tail);
     }
   }
-  const key = `${LIST_PREFIX}${LIST_DELIM}${LIST_PARTITION_NAME}-${partitionInfo.head}${LIST_DELIM}${moment().format('x')}`;
+  const key = `${buildParition(partitionInfo.head)}${moment().format('x')}`;
   try {
     console.log(`\n=== ${key} ===`);
     console.log('Pulling Image');
@@ -85,8 +86,8 @@ const updateManifest = async (tail) => {
   }).promise();
 };
 
-const clearPartition = async (partitionIndex) => {
-  const prefix = `${LIST_PREFIX}${LIST_DELIM}${LIST_PARTITION_NAME}-${partitionIndex}`;
+const clearPartition = async partitionIndex => {
+  const prefix = buildParition(partitionIndex)
   console.log(`\n=== Clearing Partition: ${prefix} ===`);
   const images = await s3.listObjectsV2({
     Bucket: S3_BUCKET,
@@ -100,6 +101,9 @@ const clearPartition = async (partitionIndex) => {
   }).promise();
   console.log(`=== Done ===`);
 };
+
+const buildParition = index => `${LIST_PREFIX}${LIST_DELIM}${partitionIndex(index)}-${LIST_PARTITION_NAME}${LIST_DELIM}`;
+const partitionIndex = index => `${'0'.repeat(PARTITION_DIGITS - ('' + index).length)}${index}`;
 
 const sendMessage = async (brokerConnection, bucket, key) => {
   const exchange = {
